@@ -1,0 +1,870 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#6d4aff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Расходы" />
+  <title>Расходы</title>
+
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+
+  <!-- Excel import/export. The core app still works if this CDN is temporarily unavailable. -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#f5f6fb; --card:#fff; --text:#1f2430; --muted:#6f7785;
+      --accent:#6d4aff; --accent2:#5a3ce0; --line:#e4e7ef;
+      --danger:#c93434; --ok:#1c7c54; --shadow:0 8px 28px rgba(35,39,47,.08);
+    }
+    *{box-sizing:border-box}
+    html{background:var(--bg)}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1180px;margin:0 auto;padding:16px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
+    h1,h2,h3{margin:0 0 12px}
+    h1{font-size:25px} h2{font-size:21px} h3{font-size:17px}
+    .muted{color:var(--muted);font-size:13px}
+    .toolbar,.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+    button,.btn,input,select,textarea{font:inherit}
+    button,.btn{
+      border:1px solid var(--line);background:#fff;color:var(--text);padding:10px 13px;border-radius:11px;
+      cursor:pointer;font-weight:650;min-height:42px
+    }
+    button:hover{border-color:#c8cce0}
+    button.primary{background:var(--accent);border-color:var(--accent);color:white}
+    button.primary:hover{background:var(--accent2)}
+    button.danger{color:var(--danger)}
+    button.good{color:var(--ok)}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    input,select,textarea{
+      border:1px solid var(--line);background:#fff;color:var(--text);border-radius:10px;padding:10px 11px;min-height:42px
+    }
+    input:focus,select:focus,textarea:focus{outline:2px solid rgba(109,74,255,.18);border-color:var(--accent)}
+    .grow{flex:1 1 300px}
+    .agent{border:2px solid rgba(109,74,255,.22)}
+    .agent-title{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .agent-input{display:flex;gap:8px;align-items:stretch;margin-top:10px}
+    .agent-input input{flex:1;min-width:0;font-size:16px}}
+    .agent-msg{margin-top:11px;border-radius:12px;padding:12px;background:#f7f5ff;border:1px solid #e3dcff;display:none}
+    .agent-msg.show{display:block}
+    .confirm-grid{display:grid;grid-template-columns:repeat(5,minmax(110px,1fr));gap:8px;margin:10px 0}
+    .confirm-grid label{font-size:12px;color:var(--muted)}
+    .confirm-grid input{width:100%;margin-top:4px}
+    .months{display:grid;grid-template-columns:repeat(6,minmax(115px,1fr));gap:7px;margin:10px 0}
+    .month-chip{display:flex;gap:7px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff}
+    .month-chip input{min-height:auto}
+    .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px}
+    table{border-collapse:collapse;width:100%;min-width:720px;background:#fff}
+    th,td{padding:9px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:left;white-space:nowrap}
+    th{background:#f3f4f8;position:sticky;top:0;z-index:1;font-size:13px}
+    td input{width:100%;min-width:90px;border:none;border-radius:5px;padding:7px;background:transparent}
+    td input:focus{outline:2px solid rgba(109,74,255,.17);background:#fff}
+    .money{text-align:right}
+    .total{font-weight:800}
+    .file-label{display:inline-flex;align-items:center}
+    .file-label input{display:none}
+    .hidden{display:none!important}
+    .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#222;color:#fff;padding:11px 16px;border-radius:10px;z-index:99;display:none;max-width:90vw}
+    .toast.show{display:block}
+    @media(max-width:760px){
+      .wrap{padding:10px}
+      .card{padding:13px;border-radius:15px}
+      .months{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .confirm-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .confirm-grid .wide{grid-column:1/-1}
+      button,.btn{flex:1 1 auto}
+      .agent-input button.primary{flex:0 0 auto}
+      .toolbar>*{max-width:100%}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <section class="card agent">
+    <div class="agent-title">
+      <div>
+        <h1>🤖 Умный агент расходов <span style="font-size:12px;font-weight:700;color:#1c7c54">LOCAL · FREE</span></h1>
+        <div class="muted">Пишите свободно на русском, қазақша, English или Türkçe — локальный агент определит дату, сумму и категорию.</div>
+      </div>
+</div>
+
+    <div class="agent-input">
+      <input id="agentText" type="text" autocomplete="off" placeholder="Например: вчера продукты 12 500" />
+      <button id="agentSend" class="primary" type="button">Отправить</button>
+    </div>
+    <div class="muted" style="margin-top:8px">Голос: нажмите 🎤 на клавиатуре телефона — распознанный текст попадёт в это поле.</div>
+<div id="agentMsg" class="agent-msg"></div>
+  </section>
+
+  <section class="card">
+    <h2>Pivot расходов</h2>
+    <div id="periodText" class="muted">Период: все годы</div>
+
+    <div class="row" style="margin-top:10px">
+      <label>Год
+        <select id="yearSelect"></select>
+      </label>
+    </div>
+
+    <h3 style="margin-top:14px">Месяцы</h3>
+    <div id="monthsBox" class="months"></div>
+    <div class="toolbar">
+      <button id="allMonthsBtn">Все месяцы</button>
+      <button id="noMonthsBtn">Снять все</button>
+      <button id="refreshPivotBtn" class="primary">Обновить Pivot</button>
+    </div>
+
+    <div class="table-wrap" style="margin-top:12px">
+      <table id="pivotTable"></table>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="toolbar">
+      <button id="addRowBtn">+ Добавить строку</button>
+      <label class="btn file-label">
+        Загрузить Excel
+        <input id="excelFile" type="file" accept=".xlsx,.xls,.csv" />
+      </label>
+
+      <button id="pasteToggleBtn">📋 Вставить из Excel</button>
+      <button id="exportBtn">⬇ Выгрузить базу Excel</button>
+      <button id="clearBtn" class="danger">🗑 Очистить базу</button>
+      <button id="installBtn">📱 Установить приложение</button>
+    </div>
+
+    <div id="pasteBox" class="hidden" style="margin-top:14px">
+      <h3>Вставить таблицу из Excel</h3>
+      <div class="muted">Скопируй строки в Excel (Ctrl+C), кликни в поле ниже и нажми Ctrl+V.</div>
+      <textarea id="pasteArea" rows="7" style="width:100%;margin-top:8px" placeholder="КҮН	АЙ	ЖЫЛ	АҚША	ФИЛЬТР 1"></textarea>
+      <div class="toolbar" style="margin-top:8px">
+        <button id="pasteAddBtn" class="primary">Добавить в базу</button>
+        <button id="pasteClearBtn">Очистить поле</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>База данных расходов</h2><div class="muted" style="margin-bottom:10px">Все изменения сохраняются автоматически.</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>КҮН</th><th>АЙ</th><th>ЖЫЛ</th><th>АҚША</th><th>ФИЛЬТР 1</th><th>ДЕЙСТВИЕ</th>
+          </tr>
+        </thead>
+        <tbody id="dbBody"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  // Keep the same database key used by the previous app.
+  const DB_KEY = "expense_database_v1";
+  const MONTHS_RU = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+  const MONTH_WORDS = {
+    "январ":1,"қаңтар":1,"кантар":1,
+    "феврал":2,"ақпан":2,"акпан":2,
+    "март":3,"наурыз":3,
+    "апрел":4,"сәуір":4,"сауир":4,
+    "май":5,"мамыр":5,
+    "июн":6,"маусым":6,
+    "июл":7,"шілде":7,"шилде":7,
+    "август":8,"тамыз":8,
+    "сентябр":9,"қыркүйек":9,"кыркүйек":9,
+    "октябр":10,"қазан":10,"казан":10,
+    "ноябр":11,"қараша":11,"караша":11,
+    "декабр":12,"желтоқсан":12,"желтоксан":12,
+    "january":1,"jan":1,"february":2,"feb":2,"march":3,"mar":3,"april":4,"apr":4,"may":5,"june":6,"jun":6,"july":7,"jul":7,"august":8,"aug":8,"september":9,"sept":9,"sep":9,"october":10,"oct":10,"november":11,"nov":11,"december":12,"dec":12,
+    "ocak":1,"şubat":2,"subat":2,"mart":3,"nisan":4,"mayıs":5,"mayis":5,"haziran":6,"temmuz":7,"ağustos":8,"agustos":8,"eylül":9,"eylul":9,"ekim":10,"kasım":11,"kasim":11,"aralık":12,"aralik":12,
+    "january":1,"jan":1,
+    "february":2,"feb":2,
+    "march":3,"mar":3,
+    "april":4,"apr":4,
+    "may":5,
+    "june":6,"jun":6,
+    "july":7,"jul":7,
+    "august":8,"aug":8,
+    "september":9,"sept":9,"sep":9,
+    "october":10,"oct":10,
+    "november":11,"nov":11,
+    "december":12,"dec":12
+  };
+
+  let db = [];
+  let deferredInstallPrompt = null;
+  let pendingExpense = null;
+
+  const $ = id => document.getElementById(id);
+  const pad = n => String(n).padStart(2,"0");
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : "";
+  const today = () => new Date();
+
+  function toast(msg){
+    const el=$("toast");
+    el.textContent=msg; el.classList.add("show");
+    clearTimeout(toast.t);
+    toast.t=setTimeout(()=>el.classList.remove("show"),2300);
+  }
+
+  function normalizeRecord(r){
+    if (!r || typeof r !== "object") return null;
+    const day = Number(r.day ?? r.d ?? r["КҮН"] ?? r["Күн"] ?? r["күн"]);
+    const month = Number(r.month ?? r.m ?? r["АЙ"] ?? r["Ай"] ?? r["ай"]);
+    const year = Number(r.year ?? r.y ?? r["ЖЫЛ"] ?? r["Жыл"] ?? r["жыл"]);
+    const amount = Number(String(r.amount ?? r.sum ?? r.money ?? r["АҚША"] ?? r["Ақша"] ?? r["ақша"] ?? 0).replace(/\s/g,"").replace(",","."));
+    const category = String(r.category ?? r.filter1 ?? r.filter ?? r["ФИЛЬТР 1"] ?? r["Фильтр 1"] ?? r["Категория"] ?? "").trim();
+    if (![day,month,year,amount].every(Number.isFinite)) return null;
+    return {day,month,year,amount,category};
+  }
+
+  function loadDb(){
+    const keys = [DB_KEY, "expense_db_v1", "expense_database", "expenses"];
+    for(const key of keys){
+      try{
+        const raw=localStorage.getItem(key);
+        if(!raw) continue;
+        const parsed=JSON.parse(raw);
+        const arr=Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.data) ? parsed.data : []);
+        const normalized=arr.map(normalizeRecord).filter(Boolean);
+        if(normalized.length || arr.length===0){
+          db=normalized;
+          if(key!==DB_KEY && normalized.length) localStorage.setItem(DB_KEY, JSON.stringify(normalized));
+          return;
+        }
+      }catch(e){}
+    }
+    db=[];
+  }
+
+  function saveDb(){
+    localStorage.setItem(DB_KEY, JSON.stringify(db));
+  }
+
+  function currentDateParts(offsetDays=0){
+    const d=new Date();
+    d.setHours(12,0,0,0);
+    d.setDate(d.getDate()+offsetDays);
+    return {day:d.getDate(),month:d.getMonth()+1,year:d.getFullYear()};
+  }
+
+  function validDateParts(day,month,year){
+    const d=new Date(year,month-1,day);
+    return d.getFullYear()===year && d.getMonth()===month-1 && d.getDate()===day;
+  }
+
+  function renderDb(){
+    const body=$("dbBody");
+    body.innerHTML="";
+    db.forEach((r,i)=>{
+      const tr=document.createElement("tr");
+      tr.innerHTML=`
+        <td><input data-i="${i}" data-k="day" inputmode="numeric" value="${esc(r.day)}" placeholder="День"></td>
+        <td><input data-i="${i}" data-k="month" inputmode="numeric" value="${esc(r.month)}" placeholder="Месяц"></td>
+        <td><input data-i="${i}" data-k="year" inputmode="numeric" value="${esc(r.year)}" placeholder="Год"></td>
+        <td><input data-i="${i}" data-k="amount" inputmode="decimal" value="${esc(r.amount)}" placeholder="Сумма"></td>
+        <td><input data-i="${i}" data-k="category" value="${esc(r.category)}" placeholder="Например: Еда"></td>
+        <td><button class="danger del-row" data-i="${i}">Удалить</button></td>`;
+      body.appendChild(tr);
+    });
+
+    body.querySelectorAll("input").forEach(inp=>{
+      inp.addEventListener("change",()=>{
+        const i=Number(inp.dataset.i), k=inp.dataset.k;
+        if(k==="category") db[i][k]=inp.value.trim();
+        else db[i][k]=Number(String(inp.value).replace(/\s/g,"").replace(",","."));
+        saveDb();
+        refreshYears();
+        renderPivot();
+        toast("Изменение сохранено");
+      });
+    });
+    body.querySelectorAll(".del-row").forEach(btn=>btn.addEventListener("click",()=>{
+      db.splice(Number(btn.dataset.i),1); saveDb(); renderAll(); toast("Строка удалена");
+    }));
+  }
+
+  function addBlankRow(){
+    const d=currentDateParts();
+    db.push({day:d.day,month:d.month,year:d.year,amount:0,category:""});
+    saveDb();
+    renderAll();
+    setTimeout(()=>{ const inputs=$("dbBody").querySelectorAll("tr:last-child input"); if(inputs[3]) inputs[3].focus(); },0);
+    toast("Новая строка сохранена");
+  }
+
+  function buildMonthControls(){
+    const box=$("monthsBox");
+    box.innerHTML="";
+    MONTHS_RU.forEach((name,idx)=>{
+      const label=document.createElement("label");
+      label.className="month-chip";
+      label.innerHTML=`<input type="checkbox" class="month-check" value="${idx+1}" checked> ${name}`;
+      box.appendChild(label);
+    });
+  }
+
+  function refreshYears(){
+    const sel=$("yearSelect"), prev=sel.value;
+    const years=[...new Set(db.map(r=>r.year).filter(Number.isFinite))].sort((a,b)=>b-a);
+    sel.innerHTML=`<option value="all">Все годы</option>`+years.map(y=>`<option value="${y}">${y}</option>`).join("");
+    if([...sel.options].some(o=>o.value===prev)) sel.value=prev;
+  }
+
+  function selectedMonths(){
+    return [...document.querySelectorAll(".month-check:checked")].map(x=>Number(x.value));
+  }
+
+  function formatMoney(n){
+    return Number(n||0).toLocaleString("ru-RU",{maximumFractionDigits:2});
+  }
+
+  function renderPivot(){
+    const year=$("yearSelect").value;
+    const months=selectedMonths();
+    const filtered=db.filter(r=>(year==="all" || r.year===Number(year)) && months.includes(r.month));
+    const cats=[...new Set(filtered.map(r=>r.category || "Без категории"))].sort((a,b)=>a.localeCompare(b,"ru"));
+    const table=$("pivotTable");
+
+    const periodMonths = months.length===12 ? "все месяцы" :
+      months.length===0 ? "месяцы не выбраны" :
+      months.map(m=>MONTHS_RU[m-1]).join(", ");
+    $("periodText").textContent=`Период: ${year==="all" ? "все годы" : year}; ${periodMonths}`;
+
+    let html="<thead><tr><th>ФИЛЬТР 1</th>";
+    for(const m of months) html+=`<th class="money">${MONTHS_RU[m-1]}</th>`;
+    html+='<th class="money">ИТОГО</th></tr></thead><tbody>';
+
+    let grand=0;
+    for(const cat of cats){
+      html+=`<tr><td>${esc(cat)}</td>`;
+      let rowTotal=0;
+      for(const m of months){
+        const v=filtered.filter(r=>(r.category||"Без категории")===cat && r.month===m).reduce((s,r)=>s+r.amount,0);
+        rowTotal+=v;
+        html+=`<td class="money">${formatMoney(v)}</td>`;
+      }
+      grand+=rowTotal;
+      html+=`<td class="money total">${formatMoney(rowTotal)}</td></tr>`;
+    }
+    html+=`<tr><td class="total">ИТОГО</td>`;
+    for(const m of months){
+      const v=filtered.filter(r=>r.month===m).reduce((s,r)=>s+r.amount,0);
+      html+=`<td class="money total">${formatMoney(v)}</td>`;
+    }
+    html+=`<td class="money total">${formatMoney(grand)}</td></tr></tbody>`;
+    table.innerHTML=html;
+  }
+
+  function renderAll(){
+    refreshYears(); renderDb(); renderPivot();
+  }
+
+  // ---------- Agent: local text/voice understanding ----------
+
+  const RU_NUM = {
+    "ноль":0,"один":1,"одна":1,"одно":1,"два":2,"две":2,"три":3,"четыре":4,"пять":5,"шесть":6,"семь":7,"восемь":8,"девять":9,
+    "десять":10,"одиннадцать":11,"двенадцать":12,"тринадцать":13,"четырнадцать":14,"пятнадцать":15,"шестнадцать":16,"семнадцать":17,"восемнадцать":18,"девятнадцать":19,
+    "двадцать":20,"тридцать":30,"сорок":40,"пятьдесят":50,"шестьдесят":60,"семьдесят":70,"восемьдесят":80,"девяносто":90,
+    "сто":100,"двести":200,"триста":300,"четыреста":400,"пятьсот":500,"шестьсот":600,"семьсот":700,"восемьсот":800,"девятьсот":900
+  };
+  const KK_NUM = {
+    "нөл":0,"бір":1,"екі":2,"үш":3,"төрт":4,"бес":5,"алты":6,"жеті":7,"сегіз":8,"тоғыз":9,
+    "он":10,"жиырма":20,"отыз":30,"қырық":40,"кырық":40,"елу":50,"алпыс":60,"жетпіс":70,"сексен":80,"тоқсан":90,"токсан":90,
+    "жүз":100
+  };
+  const EN_NUM = {
+    "zero":0,"one":1,"two":2,"three":3,"four":4,"five":5,"six":6,"seven":7,"eight":8,"nine":9,
+    "ten":10,"eleven":11,"twelve":12,"thirteen":13,"fourteen":14,"fifteen":15,"sixteen":16,"seventeen":17,"eighteen":18,"nineteen":19,
+    "twenty":20,"thirty":30,"forty":40,"fifty":50,"sixty":60,"seventy":70,"eighty":80,"ninety":90,
+    "hundred":100
+  };
+  const TR_NUM = {
+    "sıfır":0,"sifir":0,"bir":1,"iki":2,"üç":3,"uc":3,"dört":4,"dort":4,"beş":5,"bes":5,"altı":6,"alti":6,"yedi":7,"sekiz":8,"dokuz":9,
+    "on":10,"yirmi":20,"otuz":30,"kırk":40,"kirk":40,"elli":50,"altmış":60,"altmis":60,"yetmiş":70,"yetmis":70,"seksen":80,"doksan":90,
+    "yüz":100,"yuz":100
+  };
+
+  function parseWordNumber(text){
+    const words = String(text || "").toLowerCase()
+      .replace(/[-–—]/g, " ")
+      .replace(/[.,!?;:()]/g, " ")
+      .split(/\s+/).filter(Boolean);
+
+    let total=0, current=0, used=0;
+
+    for(let i=0;i<words.length;i++){
+      const w = words[i];
+
+      if(w in RU_NUM){
+        const v=RU_NUM[w];
+        if(v===100 && current>0 && current<10) current*=100;
+        else current+=v;
+        used++; continue;
+      }
+
+      if(w in KK_NUM){
+        const v=KK_NUM[w];
+        if((w==="жүз") && current>0 && current<10) current*=100;
+        else current+=v;
+        used++; continue;
+      }
+
+      if(w in EN_NUM){
+        const v=EN_NUM[w];
+        if(w==="hundred") current=(current||1)*100;
+        else current+=v;
+        used++; continue;
+      }
+
+      if(w in TR_NUM){
+        const v=TR_NUM[w];
+        if((w==="yüz"||w==="yuz")) current=(current||1)*100;
+        else current+=v;
+        used++; continue;
+      }
+
+      if(["тысяча","тысячи","тысяч","мың","мын","thousand","bin"].includes(w)){
+        current=(current||1)*1000;
+        total+=current;
+        current=0;
+        used++; continue;
+      }
+
+      if(["миллион","миллиона","миллионов","million","milyon"].includes(w)){
+        current=(current||1)*1000000;
+        total+=current;
+        current=0;
+        used++; continue;
+      }
+    }
+
+    return used ? total+current : null;
+  }
+
+  function parseHalfThousand(text){
+    const low=String(text||"").toLowerCase();
+
+    const numeric=low.match(/\b(\d+(?:[.,]\d+)?)\s*(?:с\s+половиной|жарым|and\s+a\s+half|buçuk|bucuk)\s*(?:тысяч(?:а|и)?|мың|мын|thousand|bin)\b/i);
+    if(numeric){
+      return (Number(numeric[1].replace(",",".")) + 0.5) * 1000;
+    }
+
+    const phrases = [
+      /(.+?)\s+с\s+половиной\s+тысяч/i,
+      /(.+?)\s+жарым\s+(?:мың|мын)/i,
+      /(.+?)\s+and\s+a\s+half\s+thousand/i,
+      /(.+?)\s+(?:buçuk|bucuk)\s+bin/i
+    ];
+
+    for(const re of phrases){
+      const m=low.match(re);
+      if(m){
+        const n=parseWordNumber(m[1]);
+        if(n!==null && n>0 && n<1000) return (n+0.5)*1000;
+      }
+    }
+    return null;
+  }
+
+  function wordsToNumber(text){
+    return parseWordNumber(text);
+  }
+
+  function extractAmount(text){
+    const cleaned=String(text||"").replace(/\u00a0/g," ");
+    const low=cleaned.toLowerCase();
+
+    const half=parseHalfThousand(cleaned);
+    if(half!==null) return half;
+
+    // 8.5k / 12 тыс / 12 мың / 12 thousand / 12 bin
+    const mult=low.match(/\b(\d+(?:[.,]\d+)?)\s*(к|k|тыс\.?|тысяч(?:а|и)?|мың|мын|thousand|bin)\b/i);
+    if(mult){
+      const n=Number(mult[1].replace(",","."));
+      if(Number.isFinite(n)) return n*1000;
+    }
+
+    // Number explicitly connected to KZT/tenge.
+    const currencyPatterns=[
+      /(\d{1,3}(?:[ \u00a0]\d{3})+|\d+(?:[.,]\d{1,2})?)\s*(?:₸|тг|тенге|теңге|kzt|tenge)\b/i,
+      /(?:₸|тг|тенге|теңге|kzt|tenge)\s*(\d{1,3}(?:[ \u00a0]\d{3})+|\d+(?:[.,]\d{1,2})?)/i
+    ];
+    for(const re of currencyPatterns){
+      const m=cleaned.match(re);
+      if(m){
+        const n=Number(m[1].replace(/\s/g,"").replace(",","."));
+        if(Number.isFinite(n)) return n;
+      }
+    }
+
+    // Remove obvious date fragments before scanning for a bare amount.
+    let amountText=low
+      .replace(/\b[0-3]?\d[./-][01]?\d(?:[./-]\d{2,4})?\b/g," ")
+      .replace(/\b[0-3]?\d(?:st|nd|rd|th)?\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+(?:of\s+)?20\d{2})?\b/g," ")
+      .replace(/\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+[0-3]?\d(?:st|nd|rd|th)?(?:,\s*|\s+)20\d{2}\b/g," ")
+      .replace(/\b[0-3]?\d(?:-го|-е|-й)?\s+(?:январ\w*|феврал\w*|март\w*|апрел\w*|ма[йя]|июн\w*|июл\w*|август\w*|сентябр\w*|октябр\w*|ноябр\w*|декабр\w*|қаңтар\w*|ақпан\w*|наурыз\w*|сәуір\w*|мамыр\w*|маусым\w*|шілде\w*|тамыз\w*|қыркүйек\w*|қазан\w*|қараша\w*|желтоқсан\w*)(?:\s+20\d{2})?\b/giu," ");
+
+    const candidates=[];
+    const re=/\d{1,3}(?:[ \u00a0]\d{3})+|\d+(?:[.,]\d{1,2})?/g;
+    let m;
+    while((m=re.exec(amountText))!==null){
+      const n=Number(m[0].replace(/\s/g,"").replace(",","."));
+      if(!Number.isFinite(n)) continue;
+      if(Number.isInteger(n) && n>=1900 && n<=2100) continue;
+      candidates.push(n);
+    }
+    if(candidates.length) return Math.max(...candidates);
+
+    const wordNum=wordsToNumber(cleaned);
+    return wordNum!==null && wordNum>0 ? wordNum : null;
+  }
+
+  function extractDate(text){
+    const low=String(text||"").toLowerCase();
+
+    if(/\b(day before yesterday|позавчера|алдыңғы күні|önceki gün|onceki gun)\b/.test(low)) return currentDateParts(-2);
+    if(/\b(yesterday|вчера|кеше|dün|dun)\b/.test(low)) return currentDateParts(-1);
+    if(/\b(today|сегодня|бүгін|бугин|bugün|bugun)\b/.test(low)) return currentDateParts(0);
+
+    let m=low.match(/\b([0-3]?\d)[./-]([01]?\d)(?:[./-](\d{2,4}))?\b/);
+    if(m){
+      let y=m[3]?Number(m[3]):today().getFullYear();
+      if(y<100)y+=2000;
+      const out={day:Number(m[1]),month:Number(m[2]),year:y};
+      if(validDateParts(out.day,out.month,out.year)) return out;
+    }
+
+    const monthMap={
+      january:1,jan:1,february:2,feb:2,march:3,mar:3,april:4,apr:4,may:5,june:6,jun:6,july:7,jul:7,august:8,aug:8,september:9,sep:9,sept:9,october:10,oct:10,november:11,nov:11,december:12,dec:12,
+      ocak:1,şubat:2,subat:2,mart:3,nisan:4,mayıs:5,mayis:5,haziran:6,temmuz:7,ağustos:8,agustos:8,eylül:9,eylul:9,ekim:10,kasım:11,kasim:11,aralık:12,aralik:12
+    };
+
+    // English/Turkish: 4th September 2026 / 4 Eylül 2026
+    m=low.match(/\b([0-3]?\d)(?:st|nd|rd|th)?\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|ocak|şubat|subat|mart|nisan|mayıs|mayis|haziran|temmuz|ağustos|agustos|eylül|eylul|ekim|kasım|kasim|aralık|aralik)\s*(?:of\s*)?(20\d{2})?\b/i);
+    if(m){
+      const day=Number(m[1]),month=monthMap[m[2]],year=m[3]?Number(m[3]):today().getFullYear();
+      if(validDateParts(day,month,year)) return {day,month,year};
+    }
+
+    // English: September 4th, 2026
+    m=low.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s+([0-3]?\d)(?:st|nd|rd|th)?(?:,\s*|\s+)(20\d{2})\b/i);
+    if(m){
+      const month=monthMap[m[1]],day=Number(m[2]),year=Number(m[3]);
+      if(validDateParts(day,month,year)) return {day,month,year};
+    }
+
+    // Russian/Kazakh month stems, including 4-го сентября 2026.
+    for(const [stem,month] of Object.entries(MONTH_WORDS)){
+      const idx=low.indexOf(stem);
+      if(idx<0) continue;
+      const before=low.slice(0,idx);
+      const dm=before.match(/(\d{1,2})(?:-го|-е|-й|st|nd|rd|th)?\s*$/);
+      const day=dm?Number(dm[1]):1;
+      const ym=low.match(/\b(20\d{2})\b/);
+      const year=ym?Number(ym[1]):today().getFullYear();
+      if(validDateParts(day,month,year)) return {day,month,year};
+    }
+
+    return currentDateParts(0);
+  }
+
+  const categoryRules = [
+    {cat:"Бензин", words:["бензин","топливо","заправ","аи-92","аи92","аи-95","аи95","fuel","petrol","gasoline","gas station","жанармай","benzin","yakıt","yakit"]},
+    {cat:"Авто", words:["машина","авто","автомобиль","car","vehicle","parking","парковка","мойка","car wash","ремонт машины","запчаст","шина","колес","көлік","kolik","araba","araç","arac","otopark"]},
+    {cat:"Продукты", words:["продукт","магнум","magnum","магазин","супермаркет","рынок","овощ","молоко","хлеб","groceries","grocery","supermarket","азық","азык","market","market alışveriş","market alisveris"]},
+    {cat:"Еда", words:["обед","ужин","завтрак","кафе","ресторан","кофе","еда","перекус","breakfast","lunch","dinner","cafe","restaurant","coffee","food","тамақ","тамак","асхана","yemek","kahve","restoran"]},
+    {cat:"Такси", words:["такси","яндекс","yandex","taxi","uber","taksi"]},
+    {cat:"Транспорт", words:["автобус","проезд","транспорт","bus","metro","fare","көлік жол","otobüs","otobus","ulaşım","ulasim"]},
+    {cat:"Коммуналка", words:["коммун","квартплат","электр","свет","вода","отоплен","utilities","electricity","water bill","heating","комуслуга","жарық","жарык","су ақы","su faturası","su faturasi","elektrik","doğalgaz","dogalgaz"]},
+    {cat:"Связь", words:["интернет","телефон","мобильн","связь","internet","phone","mobile","activ","beeline","tele2","altel","байланыс","telefon"]},
+    {cat:"Аптека", words:["аптека","лекар","медикамент","pharmacy","medicine","дәрі","дари","eczane","ilaç","ilac"]},
+    {cat:"Одежда", words:["одежд","обув","курт","брюк","рубаш","clothes","clothing","shoes","киім","kiim","giyim","ayakkabı","ayakkabi"]},
+    {cat:"Дом", words:["дом","ремонт дома","мебель","хозтовар","home","house","furniture","үй","уй","ev","mobilya"]},
+    {cat:"Развлечения", words:["кино","игра","развлеч","cinema","movie","game","entertainment","ойын","eğlence","eglence"]},
+    {cat:"Образование", words:["школ","курс","обуч","книга","school","course","education","book","оқу","оку","мектеп","kurs","eğitim","egitim"]},
+    {cat:"Подарки", words:["подар","gift","сыйлық","сыйлык","hediye"]}
+  ];
+
+  function extractCategory(text){
+    const low=String(text||"").toLowerCase();
+
+    for(const rule of categoryRules){
+      if(rule.words.some(w=>low.includes(w))) return rule.cat;
+    }
+
+    // Try words after common "for/on/за/на" prepositions.
+    const tail=low.match(/(?:\bна\b|\bза\b|\bдля\b|\bfor\b|\bon\b|\bүшін\b|\bushin\b|\biçin\b|\bicin\b)\s+([a-zа-яёәіңғүұқөһçğıöşü0-9 -]{2,40})/i);
+    if(tail){
+      let t=tail[1]
+        .replace(/\b(?:тенге|теңге|тг|kzt|tenge|today|yesterday|сегодня|вчера|бүгін|кеше|bugün|dün)\b/gi," ")
+        .replace(/\d[\d\s.,]*/g," ")
+        .replace(/\s+/g," ").trim();
+      if(t) return cap(t.split(" ").slice(0,3).join(" "));
+    }
+
+    let stripped=low
+      .replace(/\b(?:today|yesterday|day before yesterday|сегодня|вчера|позавчера|бүгін|бугин|кеше|bugün|bugun|dün|dun)\b/g," ")
+      .replace(/\b(?:spent|spend|paid|pay|bought|buy|add|expense|потратил|потратила|запиши|добавь|расход|купил|купила|төледім|töledim|harcadım|harcadim)\b/g," ")
+      .replace(/\b(?:тенге|теңге|тг|kzt|tenge|for|the|on|of|на|за|для|үшін|ushin|için|icin)\b/g," ")
+      .replace(/\b(?:january|february|march|april|may|june|july|august|september|october|november|december|ocak|şubat|subat|mart|nisan|mayıs|mayis|haziran|temmuz|ağustos|agustos|eylül|eylul|ekim|kasım|kasim|aralık|aralik)\b/g," ")
+      .replace(/\b\d{1,2}(?:st|nd|rd|th|-го|-е|-й)?\b/g," ")
+      .replace(/\b20\d{2}\b/g," ")
+      .replace(/\d[\d\s.,]*/g," ")
+      .replace(/\s+/g," ").trim();
+
+    return cap(stripped.split(" ").slice(0,3).join(" ")) || "Другое";
+  }
+
+  function parseQueryPeriod(text){
+    const low=String(text||"").toLowerCase();
+    let month=null,year=null,day=null;
+
+    for(const [stem,m] of Object.entries(MONTH_WORDS)){
+      if(low.includes(stem)){month=m;break;}
+    }
+
+    const ym=low.match(/\b(20\d{2})\b/);
+    if(ym) year=Number(ym[1]);
+
+    if(/\b(?:этот месяц|в этом месяце|this month|осы ай|bu ay)\b/.test(low)){
+      month=today().getMonth()+1; year=today().getFullYear();
+    }
+    if(/\b(?:прошлый месяц|в прошлом месяце|last month|өткен ай|otken ay|geçen ay|gecen ay)\b/.test(low)){
+      const d=new Date(today().getFullYear(),today().getMonth()-1,1);
+      month=d.getMonth()+1; year=d.getFullYear();
+    }
+    if(/\b(?:этот год|в этом году|this year|осы жыл|bu yıl|bu yil)\b/.test(low)){
+      year=today().getFullYear();
+    }
+    if(/\b(?:прошлый год|в прошлом году|last year|өткен жыл|otken zhyl|geçen yıl|gecen yil)\b/.test(low)){
+      year=today().getFullYear()-1;
+    }
+
+    if(/\b(?:сегодня|today|бүгін|бугин|bugün|bugun)\b/.test(low)){
+      const d=currentDateParts(0); day=d.day; month=d.month; year=d.year;
+    }
+    if(/\b(?:вчера|yesterday|кеше|dün|dun)\b/.test(low)){
+      const d=currentDateParts(-1); day=d.day; month=d.month; year=d.year;
+    }
+
+    return {day,month,year};
+  }
+
+  function isQuery(text){
+    return /\b(?:сколько|покажи|итого|сумма|расходы|потрачено|траты|how much|show|total|expenses|spent this|spent last|қанша|канша|шығын|шыгын|ne kadar|toplam|harcama)\b/i.test(String(text||""));
+  }
+
+  function handleQuery(text){
+    const {day,month,year}=parseQueryPeriod(text);
+    const low=String(text||"").toLowerCase();
+    let category=null;
+
+    for(const rule of categoryRules){
+      if(rule.words.some(w=>low.includes(w))){category=rule.cat;break;}
+    }
+
+    const rows=db.filter(r=>
+      (!day||r.day===day) &&
+      (!month||r.month===month) &&
+      (!year||r.year===year) &&
+      (!category||r.category===category)
+    );
+    const total=rows.reduce((s,r)=>s+r.amount,0);
+
+    let period="за всё время";
+    if(day&&month&&year) period=`за ${pad(day)}.${pad(month)}.${year}`;
+    else if(month&&year) period=`за ${MONTHS_RU[month-1].toLowerCase()} ${year}`;
+    else if(month) period=`за ${MONTHS_RU[month-1].toLowerCase()}`;
+    else if(year) period=`за ${year} год`;
+
+    $("agentMsg").innerHTML=`
+      <strong>📊 ${category ? esc(category)+": " : ""}${formatMoney(total)} ₸</strong><br>
+      <span class="muted">${esc(period)} · записей: ${rows.length}</span>`;
+    $("agentMsg").classList.add("show");
+  }
+
+  function showExpenseConfirmation(p){
+    pendingExpense=p;
+    $("agentMsg").innerHTML=`
+      <strong>Понял. Проверь перед добавлением:</strong>
+      <div class="confirm-grid">
+        <label>День<input id="cDay" inputmode="numeric" value="${p.day}"></label>
+        <label>Месяц<input id="cMonth" inputmode="numeric" value="${p.month}"></label>
+        <label>Год<input id="cYear" inputmode="numeric" value="${p.year}"></label>
+        <label>Сумма, ₸<input id="cAmount" inputmode="decimal" value="${p.amount ?? ""}"></label>
+        <label class="wide">ФИЛЬТР 1<input id="cCategory" value="${esc(p.category)}"></label>
+      </div>
+      <div class="toolbar">
+        <button id="confirmAdd" class="primary">✅ Добавить</button>
+        <button id="confirmCancel">Отмена</button>
+      </div>`;
+    $("agentMsg").classList.add("show");
+
+    $("confirmAdd").onclick=()=>{
+      const r={
+        day:Number($("cDay").value), month:Number($("cMonth").value), year:Number($("cYear").value),
+        amount:Number(String($("cAmount").value).replace(/\s/g,"").replace(",",".")),
+        category:$("cCategory").value.trim()||"Другое"
+      };
+      if(!validDateParts(r.day,r.month,r.year)){ toast("Проверь дату"); return; }
+      if(!Number.isFinite(r.amount) || r.amount<=0){ toast("Проверь сумму"); return; }
+      db.push(r); saveDb(); renderAll();
+      $("agentMsg").innerHTML=`✅ Добавлено: <strong>${formatMoney(r.amount)} ₸</strong> · ${esc(r.category)} · ${pad(r.day)}.${pad(r.month)}.${r.year}`;
+      $("agentText").value="";
+      pendingExpense=null;
+      toast("Расход добавлен");
+    };
+    $("confirmCancel").onclick=()=>{
+      pendingExpense=null; $("agentMsg").classList.remove("show"); $("agentMsg").innerHTML="";
+    };
+  }
+
+  function runAgent(){
+    const text=$("agentText").value.trim();
+    if(!text){toast("Напишите команду");return;}
+
+    if(isQuery(text)){
+      handleQuery(text);
+      return;
+    }
+
+    const amount=extractAmount(text);
+    const d=extractDate(text);
+    const category=extractCategory(text);
+
+    showExpenseConfirmation({...d,amount,category});
+
+    if(amount===null){
+      toast("Сумму не распознал — введи её в поле");
+    }
+  }
+
+
+
+  // ---------- Excel ----------
+
+  function rowsFrom2D(data){
+    if(!Array.isArray(data)||!data.length) return [];
+    const first=data[0].map(v=>String(v??"").trim().toLowerCase());
+    const hasHeader=first.some(x=>["күн","ай","жыл","ақша","фильтр 1","день","месяц","год","сумма","категория"].includes(x));
+    const rows=hasHeader ? data.slice(1) : data;
+
+    let map={day:0,month:1,year:2,amount:3,category:4};
+    if(hasHeader){
+      const find=(names,fallback)=>{const i=first.findIndex(x=>names.includes(x));return i>=0?i:fallback;};
+      map.day=find(["күн","день","day"],0);
+      map.month=find(["ай","месяц","month"],1);
+      map.year=find(["жыл","год","year"],2);
+      map.amount=find(["ақша","сумма","amount","money"],3);
+      map.category=find(["фильтр 1","категория","category","filter 1"],4);
+    }
+
+    return rows.map(r=>normalizeRecord({
+      day:r[map.day],month:r[map.month],year:r[map.year],amount:r[map.amount],category:r[map.category]
+    })).filter(Boolean);
+  }
+
+  function importExcel(file){
+    if(!window.XLSX){toast("Модуль Excel не загрузился. Проверь интернет.");return;}
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const wb=XLSX.read(e.target.result,{type:"array"});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+        const rows=rowsFrom2D(data);
+        db.push(...rows); saveDb(); renderAll(); toast(`Добавлено строк: ${rows.length}`);
+      }catch(err){toast("Не удалось прочитать Excel");}
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function exportExcel(){
+    const data=db.map(r=>({"КҮН":r.day,"АЙ":r.month,"ЖЫЛ":r.year,"АҚША":r.amount,"ФИЛЬТР 1":r.category}));
+    if(window.XLSX){
+      const ws=XLSX.utils.json_to_sheet(data,{header:["КҮН","АЙ","ЖЫЛ","АҚША","ФИЛЬТР 1"]});
+      ws["!cols"]=[{wch:8},{wch:8},{wch:10},{wch:16},{wch:28}];
+      const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Расходы");
+      XLSX.writeFile(wb,`Расходы_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }else{
+      const rows=[["КҮН","АЙ","ЖЫЛ","АҚША","ФИЛЬТР 1"],...db.map(r=>[r.day,r.month,r.year,r.amount,r.category])];
+      const csv="\ufeff"+rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(";")).join("\n");
+      const a=document.createElement("a");
+      a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+      a.download=`Расходы_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+    }
+  }
+
+  function pasteImport(){
+    const text=$("pasteArea").value.trim();
+    if(!text){toast("Поле пустое");return;}
+    const data=text.split(/\r?\n/).filter(Boolean).map(line=>line.split("\t"));
+    const rows=rowsFrom2D(data);
+    db.push(...rows); saveDb(); renderAll(); toast(`Добавлено строк: ${rows.length}`);
+  }
+
+  // ---------- Install / service worker ----------
+
+  window.addEventListener("beforeinstallprompt",e=>{
+    e.preventDefault(); deferredInstallPrompt=e; $("installBtn").disabled=false;
+  });
+
+  $("installBtn").onclick=async()=>{
+    if(deferredInstallPrompt){
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt=null;
+    }else{
+      toast("Если кнопка установки не появилась: меню браузера → «Добавить на главный экран»");
+    }
+  };
+
+  if("serviceWorker" in navigator){
+    window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").catch(()=>{}));
+  }
+
+  // ---------- UI events ----------
+
+  $("agentSend").onclick=runAgent;
+  $("agentText").addEventListener("keydown",e=>{if(e.key==="Enter")runAgent();});
+  $("addRowBtn").onclick=addBlankRow;
+  $("refreshPivotBtn").onclick=renderPivot;
+  $("yearSelect").onchange=renderPivot;
+
+  $("allMonthsBtn").onclick=()=>{document.querySelectorAll(".month-check").forEach(x=>x.checked=true);renderPivot();};
+  $("noMonthsBtn").onclick=()=>{document.querySelectorAll(".month-check").forEach(x=>x.checked=false);renderPivot();};
+  $("monthsBox").addEventListener("change",renderPivot);
+
+  $("excelFile").onchange=e=>{const f=e.target.files?.[0];if(f)importExcel(f);e.target.value="";};
+  $("exportBtn").onclick=exportExcel;
+  $("pasteToggleBtn").onclick=()=>$("pasteBox").classList.toggle("hidden");
+  $("pasteAddBtn").onclick=pasteImport;
+  $("pasteClearBtn").onclick=()=>{$("pasteArea").value="";};
+
+  $("clearBtn").onclick=()=>{
+    if(!confirm("Очистить всю базу расходов? Это действие нельзя отменить.")) return;
+    if(!confirm("Точно удалить ВСЕ записи?")) return;
+    db=[]; saveDb(); renderAll(); toast("База очищена");
+  };
+
+  buildMonthControls();
+  loadDb();
+  renderAll();
+})();
+</script>
+</body>
+</html>
