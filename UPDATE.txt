@@ -1,1 +1,5 @@
-Обновление Pivot: удалена детализация по категориям. Показывается только общая сумма по каждому выбранному месяцу и общий итог. Остальная логика приложения не изменена.
+Pivot update:
+- Only 'Обновить Pivot' button remains.
+- Years are shown under 'Показатель'.
+- Only months with non-zero sums are shown.
+- Rightmost column shows total for each year.

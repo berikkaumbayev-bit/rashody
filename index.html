@@ -103,20 +103,8 @@
   </section>
 
   <section class="card">
-    <h2>Pivot — общая сумма по месяцам</h2>
-    <div id="periodText" class="muted">Период: все годы</div>
-
-    <div class="row" style="margin-top:10px">
-      <label>Год
-        <select id="yearSelect"></select>
-      </label>
-    </div>
-
-    <h3 style="margin-top:14px">Месяцы</h3>
-    <div id="monthsBox" class="months"></div>
+    <h2>Pivot — суммы по годам и месяцам</h2>
     <div class="toolbar">
-      <button id="allMonthsBtn">Все месяцы</button>
-      <button id="noMonthsBtn">Снять все</button>
       <button id="refreshPivotBtn" class="primary">Обновить Pivot</button>
     </div>
 
@@ -287,7 +275,6 @@
         if(k==="category") db[i][k]=inp.value.trim();
         else db[i][k]=Number(String(inp.value).replace(/\s/g,"").replace(",","."));
         saveDb();
-        refreshYears();
         renderPivot();
         toast("Изменение сохранено");
       });
@@ -306,69 +293,67 @@
     toast("Новая строка сохранена");
   }
 
-  function buildMonthControls(){
-    const box=$("monthsBox");
-    box.innerHTML="";
-    MONTHS_RU.forEach((name,idx)=>{
-      const label=document.createElement("label");
-      label.className="month-chip";
-      label.innerHTML=`<input type="checkbox" class="month-check" value="${idx+1}" checked> ${name}`;
-      box.appendChild(label);
-    });
-  }
-
-  function refreshYears(){
-    const sel=$("yearSelect"), prev=sel.value;
-    const years=[...new Set(db.map(r=>r.year).filter(Number.isFinite))].sort((a,b)=>b-a);
-    sel.innerHTML=`<option value="all">Все годы</option>`+years.map(y=>`<option value="${y}">${y}</option>`).join("");
-    if([...sel.options].some(o=>o.value===prev)) sel.value=prev;
-  }
-
-  function selectedMonths(){
-    return [...document.querySelectorAll(".month-check:checked")].map(x=>Number(x.value));
-  }
-
   function formatMoney(n){
     return Number(n||0).toLocaleString("ru-RU",{maximumFractionDigits:2});
   }
 
   function renderPivot(){
-    const year=$("yearSelect").value;
-    const months=selectedMonths();
-    const filtered=db.filter(r=>(year==="all" || r.year===Number(year)) && months.includes(r.month));
     const table=$("pivotTable");
 
-    const periodMonths = months.length===12 ? "все месяцы" :
-      months.length===0 ? "месяцы не выбраны" :
-      months.map(m=>MONTHS_RU[m-1]).join(", ");
-    $("periodText").textContent=`Период: ${year==="all" ? "все годы" : year}; ${periodMonths}`;
+    const valid=db.filter(r=>
+      Number.isFinite(r.year) &&
+      Number.isFinite(r.month) &&
+      Number.isFinite(r.amount) &&
+      r.month>=1 && r.month<=12
+    );
 
-    if(months.length===0){
-      table.innerHTML='<tbody><tr><td class="muted">Выберите хотя бы один месяц.</td></tr></tbody>';
+    if(!valid.length){
+      table.innerHTML='<tbody><tr><td class="muted">Пока нет данных для Pivot.</td></tr></tbody>';
       return;
     }
 
-    let html="<thead><tr><th>Показатель</th>";
-    for(const m of months) html+=`<th class="money">${MONTHS_RU[m-1]}</th>`;
-    html+='<th class="money">ИТОГО</th></tr></thead><tbody>';
+    const years=[...new Set(valid.map(r=>r.year))].sort((a,b)=>a-b);
 
-    let grand=0;
-    html+='<tr><td class="total">Общая сумма</td>';
+    // Показываем только месяцы, где хотя бы в одном году есть ненулевая сумма.
+    const months=[...new Set(
+      valid
+        .filter(r=>Number(r.amount)!==0)
+        .map(r=>r.month)
+    )].sort((a,b)=>a-b);
 
-    for(const m of months){
-      const v=filtered
-        .filter(r=>r.month===m)
-        .reduce((s,r)=>s+r.amount,0);
-      grand+=v;
-      html+=`<td class="money total">${formatMoney(v)} ₸</td>`;
+    if(!months.length){
+      table.innerHTML='<tbody><tr><td class="muted">Нет сумм для Pivot.</td></tr></tbody>';
+      return;
     }
 
-    html+=`<td class="money total">${formatMoney(grand)} ₸</td></tr></tbody>`;
+    let html='<thead><tr><th>Показатель</th>';
+    for(const m of months){
+      html+=`<th class="money">${MONTHS_RU[m-1]}</th>`;
+    }
+    html+='<th class="money">ИТОГО</th></tr></thead><tbody>';
+
+    for(const year of years){
+      html+=`<tr><td class="total">${year}</td>`;
+      let yearTotal=0;
+
+      for(const m of months){
+        const value=valid
+          .filter(r=>r.year===year && r.month===m)
+          .reduce((sum,r)=>sum+r.amount,0);
+
+        yearTotal+=value;
+        html+=`<td class="money total">${value!==0 ? formatMoney(value)+' ₸' : ''}</td>`;
+      }
+
+      html+=`<td class="money total">${formatMoney(yearTotal)} ₸</td></tr>`;
+    }
+
+    html+='</tbody>';
     table.innerHTML=html;
   }
 
   function renderAll(){
-    refreshYears(); renderDb(); renderPivot();
+    renderDb(); renderPivot();
   }
 
   // ---------- Agent: local text/voice understanding ----------
@@ -841,12 +826,6 @@
   $("agentText").addEventListener("keydown",e=>{if(e.key==="Enter")runAgent();});
   $("addRowBtn").onclick=addBlankRow;
   $("refreshPivotBtn").onclick=renderPivot;
-  $("yearSelect").onchange=renderPivot;
-
-  $("allMonthsBtn").onclick=()=>{document.querySelectorAll(".month-check").forEach(x=>x.checked=true);renderPivot();};
-  $("noMonthsBtn").onclick=()=>{document.querySelectorAll(".month-check").forEach(x=>x.checked=false);renderPivot();};
-  $("monthsBox").addEventListener("change",renderPivot);
-
   $("excelFile").onchange=e=>{const f=e.target.files?.[0];if(f)importExcel(f);e.target.value="";};
   $("exportBtn").onclick=exportExcel;
   $("pasteToggleBtn").onclick=()=>$("pasteBox").classList.toggle("hidden");
@@ -859,7 +838,6 @@
     db=[]; saveDb(); renderAll(); toast("База очищена");
   };
 
-  buildMonthControls();
   loadDb();
   renderAll();
 })();

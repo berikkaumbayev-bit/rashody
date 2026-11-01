@@ -1,4 +1,4 @@
-const CACHE = "expense-pwa-v2-monthly-total-2026-11-01-1";
+const CACHE = "expense-pwa-v2-pivot-auto-years-2026-11-01-2";
 const APP_SHELL = [
   "./",
   "./index.html",
