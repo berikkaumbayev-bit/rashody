@@ -103,7 +103,7 @@
   </section>
 
   <section class="card">
-    <h2>Pivot расходов</h2>
+    <h2>Pivot — общая сумма по месяцам</h2>
     <div id="periodText" class="muted">Период: все годы</div>
 
     <div class="row" style="margin-top:10px">
@@ -336,7 +336,6 @@
     const year=$("yearSelect").value;
     const months=selectedMonths();
     const filtered=db.filter(r=>(year==="all" || r.year===Number(year)) && months.includes(r.month));
-    const cats=[...new Set(filtered.map(r=>r.category || "Без категории"))].sort((a,b)=>a.localeCompare(b,"ru"));
     const table=$("pivotTable");
 
     const periodMonths = months.length===12 ? "все месяцы" :
@@ -344,28 +343,27 @@
       months.map(m=>MONTHS_RU[m-1]).join(", ");
     $("periodText").textContent=`Период: ${year==="all" ? "все годы" : year}; ${periodMonths}`;
 
-    let html="<thead><tr><th>ФИЛЬТР 1</th>";
+    if(months.length===0){
+      table.innerHTML='<tbody><tr><td class="muted">Выберите хотя бы один месяц.</td></tr></tbody>';
+      return;
+    }
+
+    let html="<thead><tr><th>Показатель</th>";
     for(const m of months) html+=`<th class="money">${MONTHS_RU[m-1]}</th>`;
     html+='<th class="money">ИТОГО</th></tr></thead><tbody>';
 
     let grand=0;
-    for(const cat of cats){
-      html+=`<tr><td>${esc(cat)}</td>`;
-      let rowTotal=0;
-      for(const m of months){
-        const v=filtered.filter(r=>(r.category||"Без категории")===cat && r.month===m).reduce((s,r)=>s+r.amount,0);
-        rowTotal+=v;
-        html+=`<td class="money">${formatMoney(v)}</td>`;
-      }
-      grand+=rowTotal;
-      html+=`<td class="money total">${formatMoney(rowTotal)}</td></tr>`;
-    }
-    html+=`<tr><td class="total">ИТОГО</td>`;
+    html+='<tr><td class="total">Общая сумма</td>';
+
     for(const m of months){
-      const v=filtered.filter(r=>r.month===m).reduce((s,r)=>s+r.amount,0);
-      html+=`<td class="money total">${formatMoney(v)}</td>`;
+      const v=filtered
+        .filter(r=>r.month===m)
+        .reduce((s,r)=>s+r.amount,0);
+      grand+=v;
+      html+=`<td class="money total">${formatMoney(v)} ₸</td>`;
     }
-    html+=`<td class="money total">${formatMoney(grand)}</td></tr></tbody>`;
+
+    html+=`<td class="money total">${formatMoney(grand)} ₸</td></tr></tbody>`;
     table.innerHTML=html;
   }
 
