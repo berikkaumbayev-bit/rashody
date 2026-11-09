@@ -79,6 +79,28 @@
     }
     .action-grid>*{width:100%;margin:0}
 
+
+    #pivotTable{
+      width:100%;
+      min-width:0;
+      table-layout:auto;
+      font-size:14px;
+    }
+    #pivotTable th,
+    #pivotTable td{
+      white-space:nowrap;
+      padding:8px 7px;
+    }
+    #pivotTable th:first-child,
+    #pivotTable td:first-child{
+      width:1%;
+      text-align:left;
+    }
+    #pivotTable th:not(:first-child),
+    #pivotTable td:not(:first-child){
+      text-align:right;
+    }
+
     .pivot-head{
       display:flex;
       align-items:center;
@@ -121,6 +143,10 @@
       .db-table th:nth-child(4),.db-table td:nth-child(4){width:66px}
       .db-table th:nth-child(5),.db-table td:nth-child(5){width:88px}
       .db-table th:nth-child(6),.db-table td:nth-child(6){width:64px}
+      #pivotTable{font-size:12px}
+      #pivotTable th,#pivotTable td{padding:7px 4px}
+      #pivotTable th:first-child,#pivotTable td:first-child{padding-left:7px}
+
       .agent-input button.primary{flex:0 0 auto}
       .toolbar>*{max-width:100%}
     }
@@ -358,6 +384,8 @@
 
     const years=[...new Set(valid.map(r=>r.year))].sort((a,b)=>a-b);
     const months=[...new Set(valid.map(r=>r.month))].sort((a,b)=>a-b);
+
+    table.style.fontSize = years.length <= 2 ? "" : years.length === 3 ? "11px" : "10px";
 
     let html='<thead><tr><th>Месяц/Год</th>';
     for(const year of years){

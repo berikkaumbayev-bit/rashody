@@ -1,6 +1,5 @@
-08.11.2026
-- Pivot: Месяц/Год, месяцы по строкам, годы по колонкам.
-- Показываются только месяцы с суммами.
-- ИТОГО по каждому году.
-- База расходов стала компактнее по ширине.
-- Кнопки на мобильном: 2 в строке.
+09.11.2026
+- Pivot columns now size according to their text/content.
+- Removed the 720px minimum width from Pivot only.
+- Mobile Pivot padding and font are reduced so all columns fit better.
+- With 3+ years the Pivot font automatically becomes smaller.
