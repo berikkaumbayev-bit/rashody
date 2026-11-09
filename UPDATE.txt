@@ -1,5 +1,6 @@
-Pivot update:
-- Only 'Обновить Pivot' button remains.
-- Years are shown under 'Показатель'.
-- Only months with non-zero sums are shown.
-- Rightmost column shows total for each year.
+08.11.2026
+- Pivot: Месяц/Год, месяцы по строкам, годы по колонкам.
+- Показываются только месяцы с суммами.
+- ИТОГО по каждому году.
+- База расходов стала компактнее по ширине.
+- Кнопки на мобильном: 2 в строке.

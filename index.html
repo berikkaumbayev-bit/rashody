@@ -71,6 +71,38 @@
     .hidden{display:none!important}
     .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#222;color:#fff;padding:11px 16px;border-radius:10px;z-index:99;display:none;max-width:90vw}
     .toast.show{display:block}
+
+    .action-grid{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:10px;
+    }
+    .action-grid>*{width:100%;margin:0}
+
+    .pivot-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .pivot-head h2{margin:0}
+
+    .db-table{
+      width:auto;
+      min-width:0;
+      table-layout:fixed;
+    }
+    .db-table th,.db-table td{padding:6px}
+    .db-table td input{min-width:0;width:100%;padding:6px 4px}
+    .db-table th:nth-child(1),.db-table td:nth-child(1){width:50px}
+    .db-table th:nth-child(2),.db-table td:nth-child(2){width:50px}
+    .db-table th:nth-child(3),.db-table td:nth-child(3){width:64px}
+    .db-table th:nth-child(4),.db-table td:nth-child(4){width:88px}
+    .db-table th:nth-child(5),.db-table td:nth-child(5){width:120px}
+    .db-table th:nth-child(6),.db-table td:nth-child(6){width:84px}
+    .db-table .del-row{padding:7px 6px;min-height:34px;font-size:12px}
+
     @media(max-width:760px){
       .wrap{padding:10px}
       .card{padding:13px;border-radius:15px}
@@ -78,6 +110,17 @@
       .confirm-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
       .confirm-grid .wide{grid-column:1/-1}
       button,.btn{flex:1 1 auto}
+      .action-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+      .action-grid button,.action-grid .btn{font-size:13px;padding:9px 6px;min-height:44px}
+      .db-table{font-size:11px}
+      .db-table th,.db-table td{padding:4px 3px}
+      .db-table td input{font-size:11px;padding:4px 2px}
+      .db-table th:nth-child(1),.db-table td:nth-child(1){width:36px}
+      .db-table th:nth-child(2),.db-table td:nth-child(2){width:36px}
+      .db-table th:nth-child(3),.db-table td:nth-child(3){width:48px}
+      .db-table th:nth-child(4),.db-table td:nth-child(4){width:66px}
+      .db-table th:nth-child(5),.db-table td:nth-child(5){width:88px}
+      .db-table th:nth-child(6),.db-table td:nth-child(6){width:64px}
       .agent-input button.primary{flex:0 0 auto}
       .toolbar>*{max-width:100%}
     }
@@ -103,9 +146,9 @@
   </section>
 
   <section class="card">
-    <h2>Pivot — суммы по годам и месяцам</h2>
-    <div class="toolbar">
-      <button id="refreshPivotBtn" class="primary">Обновить Pivot</button>
+    <div class="pivot-head">
+      <h2>Свод расходов (Pivot)</h2>
+      <button id="refreshPivotBtn" class="primary">↻ Обновить Pivot</button>
     </div>
 
     <div class="table-wrap" style="margin-top:12px">
@@ -114,7 +157,7 @@
   </section>
 
   <section class="card">
-    <div class="toolbar">
+    <div class="toolbar action-grid">
       <button id="addRowBtn">+ Добавить строку</button>
       <label class="btn file-label">
         Загрузить Excel
@@ -122,7 +165,7 @@
       </label>
 
       <button id="pasteToggleBtn">📋 Вставить из Excel</button>
-      <button id="exportBtn">⬇ Выгрузить базу Excel</button>
+      <button id="exportBtn">⬇ Выгрузить Excel</button>
       <button id="clearBtn" class="danger">🗑 Очистить базу</button>
       <button id="installBtn">📱 Установить приложение</button>
     </div>
@@ -141,7 +184,7 @@
   <section class="card">
     <h2>База данных расходов</h2><div class="muted" style="margin-bottom:10px">Все изменения сохраняются автоматически.</div>
     <div class="table-wrap">
-      <table>
+      <table class="db-table">
         <thead>
           <tr>
             <th>КҮН</th><th>АЙ</th><th>ЖЫЛ</th><th>АҚША</th><th>ФИЛЬТР 1</th><th>ДЕЙСТВИЕ</th>
@@ -304,7 +347,8 @@
       Number.isFinite(r.year) &&
       Number.isFinite(r.month) &&
       Number.isFinite(r.amount) &&
-      r.month>=1 && r.month<=12
+      r.month>=1 && r.month<=12 &&
+      Number(r.amount)!==0
     );
 
     if(!valid.length){
@@ -313,42 +357,34 @@
     }
 
     const years=[...new Set(valid.map(r=>r.year))].sort((a,b)=>a-b);
+    const months=[...new Set(valid.map(r=>r.month))].sort((a,b)=>a-b);
 
-    // Показываем только месяцы, где хотя бы в одном году есть ненулевая сумма.
-    const months=[...new Set(
-      valid
-        .filter(r=>Number(r.amount)!==0)
-        .map(r=>r.month)
-    )].sort((a,b)=>a-b);
-
-    if(!months.length){
-      table.innerHTML='<tbody><tr><td class="muted">Нет сумм для Pivot.</td></tr></tbody>';
-      return;
-    }
-
-    let html='<thead><tr><th>Показатель</th>';
-    for(const m of months){
-      html+=`<th class="money">${MONTHS_RU[m-1]}</th>`;
-    }
-    html+='<th class="money">ИТОГО</th></tr></thead><tbody>';
-
+    let html='<thead><tr><th>Месяц/Год</th>';
     for(const year of years){
-      html+=`<tr><td class="total">${year}</td>`;
-      let yearTotal=0;
+      html+=`<th class="money">${year}</th>`;
+    }
+    html+='</tr></thead><tbody>';
 
-      for(const m of months){
+    for(const m of months){
+      html+=`<tr><td class="total">${MONTHS_RU[m-1]}</td>`;
+      for(const year of years){
         const value=valid
           .filter(r=>r.year===year && r.month===m)
           .reduce((sum,r)=>sum+r.amount,0);
-
-        yearTotal+=value;
         html+=`<td class="money total">${value!==0 ? formatMoney(value)+' ₸' : ''}</td>`;
       }
-
-      html+=`<td class="money total">${formatMoney(yearTotal)} ₸</td></tr>`;
+      html+='</tr>';
     }
 
-    html+='</tbody>';
+    html+='<tr><td class="total">ИТОГО</td>';
+    for(const year of years){
+      const yearTotal=valid
+        .filter(r=>r.year===year)
+        .reduce((sum,r)=>sum+r.amount,0);
+      html+=`<td class="money total">${formatMoney(yearTotal)} ₸</td>`;
+    }
+    html+='</tr></tbody>';
+
     table.innerHTML=html;
   }
 
