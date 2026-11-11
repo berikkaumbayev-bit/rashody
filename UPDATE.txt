@@ -1,5 +1,5 @@
-09.11.2026
-- Pivot columns now size according to their text/content.
-- Removed the 720px minimum width from Pivot only.
-- Mobile Pivot padding and font are reduced so all columns fit better.
-- With 3+ years the Pivot font automatically becomes smaller.
+11.11.2026
+- Расходы сортируются от самой новой даты к старой.
+- Сегодняшние записи отображаются сверху.
+- Затем идут вчерашние и более старые даты.
+- При одинаковой дате более новая добавленная запись находится выше.

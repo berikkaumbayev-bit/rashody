@@ -326,7 +326,19 @@
   function renderDb(){
     const body=$("dbBody");
     body.innerHTML="";
-    db.forEach((r,i)=>{
+
+    // Новые даты сверху: год ↓, месяц ↓, день ↓.
+    // При одинаковой дате более новые добавленные записи показываются выше.
+    const ordered=db
+      .map((r,i)=>({r,i}))
+      .sort((a,b)=>
+        (b.r.year-a.r.year) ||
+        (b.r.month-a.r.month) ||
+        (b.r.day-a.r.day) ||
+        (b.i-a.i)
+      );
+
+    ordered.forEach(({r,i})=>{
       const tr=document.createElement("tr");
       tr.innerHTML=`
         <td><input data-i="${i}" data-k="day" inputmode="numeric" value="${esc(r.day)}" placeholder="День"></td>
@@ -344,12 +356,17 @@
         if(k==="category") db[i][k]=inp.value.trim();
         else db[i][k]=Number(String(inp.value).replace(/\s/g,"").replace(",","."));
         saveDb();
+        renderDb();
         renderPivot();
         toast("Изменение сохранено");
       });
     });
+
     body.querySelectorAll(".del-row").forEach(btn=>btn.addEventListener("click",()=>{
-      db.splice(Number(btn.dataset.i),1); saveDb(); renderAll(); toast("Строка удалена");
+      db.splice(Number(btn.dataset.i),1);
+      saveDb();
+      renderAll();
+      toast("Строка удалена");
     }));
   }
 
@@ -358,7 +375,10 @@
     db.push({day:d.day,month:d.month,year:d.year,amount:0,category:""});
     saveDb();
     renderAll();
-    setTimeout(()=>{ const inputs=$("dbBody").querySelectorAll("tr:last-child input"); if(inputs[3]) inputs[3].focus(); },0);
+    setTimeout(()=>{
+      const firstRowInputs=$("dbBody").querySelectorAll("tr:first-child input");
+      if(firstRowInputs[3]) firstRowInputs[3].focus();
+    },0);
     toast("Новая строка сохранена");
   }
 
